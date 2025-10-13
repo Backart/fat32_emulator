@@ -3,7 +3,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <ctype.h>
-#include <unistd.h>  // Add this for ftruncate and fileno
+#include <unistd.h>
 
 int fat32_init(Fat32Context* ctx, const char* disk_path) {
     if (!ctx || !disk_path) return -1;
@@ -15,17 +15,14 @@ int fat32_init(Fat32Context* ctx, const char* disk_path) {
     strcpy(ctx->current_path, "/");
     ctx->current_cluster = ROOT_CLUSTER;
     
-    // Try to open existing file
     ctx->disk_file = fopen(disk_path, "r+b");
     if (ctx->disk_file) {
-        // Check if it's a valid FAT32 filesystem
         if (fat32_is_valid(ctx) == 0) {
-            return 0;  // Valid filesystem
+            return 0; 
         }
         fclose(ctx->disk_file);
     }
     
-    // Create new file
     ctx->disk_file = fopen(disk_path, "w+b");
     if (!ctx->disk_file) {
         free(ctx->disk_path);
@@ -63,12 +60,10 @@ int fat32_is_valid(Fat32Context* ctx) {
         return -1;
     }
     
-    // Check signature
     if (bs.signature != 0xAA55) {
         return -1;
     }
     
-    // Check FS type
     if (strncmp(bs.fs_type, "FAT32", 5) != 0) {
         return -1;
     }
@@ -85,7 +80,6 @@ int fat32_is_valid(Fat32Context* ctx) {
 int fat32_format(Fat32Context* ctx) {
     if (!ctx || !ctx->disk_file) return -1;
     
-    // Create boot sector
     Fat32BootSector bs;
     memset(&bs, 0, sizeof(bs));
     
@@ -119,7 +113,6 @@ int fat32_format(Fat32Context* ctx) {
     memcpy(bs.fs_type, "FAT32   ", 8);
     bs.signature = 0xAA55;
     
-    // Write boot sector
     if (fat32_write_sector(ctx, 0, &bs) != 0) {
         return -1;
     }
@@ -138,7 +131,6 @@ int fat32_format(Fat32Context* ctx) {
     fat_entries[0] = 0x0FFFFFF8;  // Media type
     fat_entries[1] = 0x0FFFFFFF;  // EOF
     
-    // Write first sector of both FATs
     for (int i = 0; i < FAT_COUNT; i++) {
         if (fat32_write_sector(ctx, ctx->fat_start + i * ctx->fat_size, fat_sector) != 0) {
             return -1;
@@ -196,7 +188,6 @@ void fat32_format_name(const char* name, char* formatted_name) {
     
     const char* dot = strchr(name, '.');
     if (dot) {
-        // File with extension
         int name_len = dot - name;
         if (name_len > 8) name_len = 8;
         int ext_len = strlen(dot + 1);
@@ -205,16 +196,11 @@ void fat32_format_name(const char* name, char* formatted_name) {
         memcpy(formatted_name, name, name_len);
         memcpy(formatted_name + 8, dot + 1, ext_len);
     } else {
-        // Directory or file without extension
         int name_len = strlen(name);
         if (name_len > 11) name_len = 11;
         memcpy(formatted_name, name, name_len);
     }
     
-    // Remove conversion to uppercase to preserve case
-    // for (int i = 0; i < 11; i++) {
-    //     formatted_name[i] = toupper(formatted_name[i]);
-    // }
 }
 
 uint32_t fat32_get_cluster_from_entry(const DirEntry* entry) {
@@ -229,7 +215,6 @@ void fat32_set_cluster_to_entry(DirEntry* entry, uint32_t cluster) {
 int fat32_mkdir(Fat32Context* ctx, const char* name) {
     if (!ctx || !name || strlen(name) == 0) return -1;
     
-    // Read current directory
     uint8_t cluster[CLUSTER_SIZE];
     if (fat32_read_cluster(ctx, ctx->current_cluster, cluster) != 0) {
         return -1;
@@ -238,7 +223,6 @@ int fat32_mkdir(Fat32Context* ctx, const char* name) {
     DirEntry* entries = (DirEntry*)cluster;
     int entry_count = CLUSTER_SIZE / sizeof(DirEntry);
     
-    // Check if name already exists
     char formatted_name[11];
     fat32_format_name(name, formatted_name);
     
@@ -312,7 +296,6 @@ int fat32_touch(Fat32Context* ctx, const char* name) {
     
     printf("Debug: touch called with name '%s'\n", name);
     
-    // Read current directory
     uint8_t cluster[CLUSTER_SIZE];
     if (fat32_read_cluster(ctx, ctx->current_cluster, cluster) != 0) {
         printf("Error: Cannot read current directory cluster\n");
@@ -322,7 +305,6 @@ int fat32_touch(Fat32Context* ctx, const char* name) {
     DirEntry* entries = (DirEntry*)cluster;
     int entry_count = CLUSTER_SIZE / sizeof(DirEntry);
     
-    // Check if name already exists
     char formatted_name[11];
     fat32_format_name(name, formatted_name);
     
@@ -348,7 +330,6 @@ int fat32_touch(Fat32Context* ctx, const char* name) {
         }
     }
     
-    // Find free entry
     int free_entry = -1;
     for (int i = 0; i < entry_count; i++) {
         if (entries[i].name[0] == 0x00 || (uint8_t)entries[i].name[0] == 0xE5) {
@@ -360,15 +341,14 @@ int fat32_touch(Fat32Context* ctx, const char* name) {
     
     if (free_entry == -1) {
         printf("Error: No free directory entries\n");
-        return -1;  // No space in directory
+        return -1;
     }
     
-    // Create file entry
     memset(&entries[free_entry], 0, sizeof(DirEntry));
     memcpy(entries[free_entry].name, formatted_name, 11);
     entries[free_entry].attr = ATTR_ARCHIVE;
     entries[free_entry].file_size = 0;
-    fat32_set_cluster_to_entry(&entries[free_entry], 0);  // Empty file
+    fat32_set_cluster_to_entry(&entries[free_entry], 0);
     
     printf("Debug: Creating file entry with name '");
     for (int i = 0; i < 11; i++) {
@@ -388,7 +368,6 @@ int fat32_touch(Fat32Context* ctx, const char* name) {
 int fat32_cd(Fat32Context* ctx, const char* path) {
     if (!ctx || !path) return -1;
     
-    // Only absolute paths are allowed
     if (path[0] != '/') {
         return -1;
     }
@@ -477,7 +456,7 @@ int fat32_cd(Fat32Context* ctx, const char* path) {
         }
     }
     
-    return -1;  // Directory not found
+    return -1;
 }
 
 int fat32_ls(Fat32Context* ctx, const char* path) {
@@ -541,7 +520,6 @@ int fat32_ls(Fat32Context* ctx, const char* path) {
         }
         name[name_len] = '\0';
         
-        // Add extension if present
         if (entries[i].name[8] != ' ') {
             strcat(name, ".");
             strncat(name, entries[i].name + 8, 3);
@@ -554,7 +532,6 @@ int fat32_ls(Fat32Context* ctx, const char* path) {
             }
         }
         
-        // Show entry without trailing slash for directories
         printf("%s\n", name);
     }
     
