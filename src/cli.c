@@ -16,7 +16,7 @@ int process_command(Fat32Context* ctx, const char* command) {
     int parsed = sscanf(command, "%255s %255s %255s", cmd, arg1, arg2);
     
     if (parsed == 0) {
-        return 0;  // Empty command
+        return 0;
     }
     
     if (strcmp(cmd, "format") == 0) {
@@ -78,13 +78,12 @@ int process_command(Fat32Context* ctx, const char* command) {
         if (arg1[0] == '\0') {
             printf("Usage: cd <path>\n");
         } else if (fat32_cd(ctx, arg1) == 0) {
-            // Success - prompt will show new path
         } else {
             printf("cd failed\n");
         }
     }
     else if (strcmp(cmd, "exit") == 0 || strcmp(cmd, "quit") == 0) {
-        return -1;  // Signal to exit
+        return -1;
     }
     else {
         printf("Unknown command: %s\n", cmd);
