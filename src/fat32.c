@@ -1,9 +1,28 @@
+/**
+ * @file fat32.c
+ * @brief High-level FAT32 filesystem operations.
+ *
+ * Implements FAT32 initialization, formatting, file and directory
+ * management (mkdir, touch, cd, ls) on a disk image.
+ */
+
 #include "fat32.h"
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 #include <ctype.h>
 #include <unistd.h>
+
+/**
+ * @brief Initializes the FAT32 context and disk image.
+ *
+ * Opens the disk file (existing or creates new) and initializes
+ * context fields. Creates a 20 MB disk file if it does not exist.
+ *
+ * @param ctx Pointer to FAT32 context.
+ * @param disk_path Path to disk image file.
+ * @return 0 on success, -1 on failure.
+ */
 
 int fat32_init(Fat32Context* ctx, const char* disk_path) {
     if (!ctx || !disk_path) return -1;
@@ -43,6 +62,12 @@ int fat32_init(Fat32Context* ctx, const char* disk_path) {
     return 0;
 }
 
+/**
+ * @brief Frees resources and closes the disk file.
+ *
+ * @param ctx Pointer to FAT32 context.
+ */
+
 void fat32_cleanup(Fat32Context* ctx) {
     if (ctx) {
         if (ctx->disk_file) {
@@ -51,6 +76,15 @@ void fat32_cleanup(Fat32Context* ctx) {
         free(ctx->disk_path);
     }
 }
+
+/**
+ * @brief Validates the FAT32 disk by reading boot sector.
+ *
+ * Fills the context with FAT and data area parameters.
+ *
+ * @param ctx Pointer to FAT32 context.
+ * @return 0 if valid FAT32, -1 otherwise.
+ */
 
 int fat32_is_valid(Fat32Context* ctx) {
     if (!ctx || !ctx->disk_file) return -1;
@@ -76,6 +110,15 @@ int fat32_is_valid(Fat32Context* ctx) {
     
     return 0;
 }
+
+/**
+ * @brief Formats the disk as FAT32.
+ *
+ * Initializes boot sector, FAT tables, and root directory cluster.
+ *
+ * @param ctx Pointer to FAT32 context.
+ * @return 0 on success, -1 on failure.
+ */
 
 int fat32_format(Fat32Context* ctx) {
     if (!ctx || !ctx->disk_file) return -1;
@@ -173,6 +216,15 @@ int fat32_format(Fat32Context* ctx) {
     return 0;
 }
 
+/**
+ * @brief Converts a filename to FAT32 8.3 format.
+ *
+ * Handles special cases for "." and "..", and splits name and extension.
+ *
+ * @param name Input filename (e.g., "file.txt").
+ * @param formatted_name Output buffer of 11 bytes.
+ */
+
 void fat32_format_name(const char* name, char* formatted_name) {
     memset(formatted_name, ' ', 11);
     
@@ -203,14 +255,36 @@ void fat32_format_name(const char* name, char* formatted_name) {
     
 }
 
+/**
+ * @brief Retrieves the cluster number from a directory entry.
+ *
+ * @param entry Pointer to DirEntry.
+ * @return Cluster number.
+ */
+
 uint32_t fat32_get_cluster_from_entry(const DirEntry* entry) {
     return ((uint32_t)entry->cluster_high << 16) | entry->cluster_low;
 }
+
+/**
+ * @brief Sets the cluster number in a directory entry.
+ *
+ * @param entry Pointer to DirEntry.
+ * @param cluster Cluster number.
+ */
 
 void fat32_set_cluster_to_entry(DirEntry* entry, uint32_t cluster) {
     entry->cluster_high = (cluster >> 16) & 0xFFFF;
     entry->cluster_low = cluster & 0xFFFF;
 }
+
+/**
+ * @brief Creates a new directory in the current directory.
+ *
+ * @param ctx Pointer to FAT32 context.
+ * @param name Name of new directory.
+ * @return 0 on success, -1 on failure.
+ */
 
 int fat32_mkdir(Fat32Context* ctx, const char* name) {
     if (!ctx || !name || strlen(name) == 0) return -1;
@@ -288,6 +362,14 @@ int fat32_mkdir(Fat32Context* ctx, const char* name) {
     return 0;
 }
 
+/**
+ * @brief Creates a new empty file in the current directory.
+ *
+ * @param ctx Pointer to FAT32 context.
+ * @param name Name of the file.
+ * @return 0 on success, -1 on failure.
+ */
+
 int fat32_touch(Fat32Context* ctx, const char* name) {
     if (!ctx || !name || strlen(name) == 0) {
         printf("Error: Invalid parameters\n");
@@ -364,6 +446,16 @@ int fat32_touch(Fat32Context* ctx, const char* name) {
     printf("Debug: File created successfully\n");
     return 0;
 }
+
+/**
+ * @brief Changes the current directory.
+ *
+ * Supports "/", ".", "..", and immediate subdirectories.
+ *
+ * @param ctx Pointer to FAT32 context.
+ * @param path Path to change to.
+ * @return 0 on success, -1 on failure.
+ */
 
 int fat32_cd(Fat32Context* ctx, const char* path) {
     if (!ctx || !path) return -1;
@@ -458,6 +550,16 @@ int fat32_cd(Fat32Context* ctx, const char* path) {
     
     return -1;
 }
+
+/**
+ * @brief Lists the contents of a directory.
+ *
+ * Supports current directory or a simple absolute path (one level).
+ *
+ * @param ctx Pointer to FAT32 context.
+ * @param path Optional path (NULL to list current directory).
+ * @return 0 on success, -1 on failure.
+ */
 
 int fat32_ls(Fat32Context* ctx, const char* path) {
     uint32_t target_cluster = ctx->current_cluster;
