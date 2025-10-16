@@ -8,7 +8,7 @@ SOURCES = $(wildcard $(SRCDIR)/*.c)
 OBJECTS = $(SOURCES:$(SRCDIR)/%.c=$(OBJDIR)/%.o)
 TARGET = $(BINDIR)/f32disk
 
-.PHONY: all clean
+.PHONY: all clean install test
 
 all: $(TARGET)
 
@@ -30,5 +30,6 @@ clean:
 install: $(TARGET)
 	cp $(TARGET) /usr/local/bin/
 
-test: $(TARGET)
-	./$(TARGET) test.disk
+test: obj/cli.o obj/disc_io.o obj/fat32.o | $(BINDIR)
+	gcc $(CFLAGS) test/test_fat32.c obj/cli.o obj/disc_io.o obj/fat32.o -o $(BINDIR)/test_fat32
+	$(BINDIR)/test_fat32
