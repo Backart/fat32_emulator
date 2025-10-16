@@ -4,14 +4,27 @@
 #include <stdint.h>
 #include <stdio.h>
 
+/**
+ * @file fat32.h
+ * @brief FAT32 filesystem structures, constants, and API for the FAT32 emulator.
+ *
+ * This header defines the data structures, constants, and function prototypes
+ * necessary for working with a FAT32 filesystem in a file-backed emulator.
+ */
+
 #define SECTOR_SIZE 512
-#define CLUSTER_SIZE 4096  // 8 sectors per cluster
-#define TOTAL_SECTORS 40960  // 20 MB = 40960 sectors
+#define CLUSTER_SIZE 4096  /**< 8 sectors per cluster */
+#define TOTAL_SECTORS 40960 /**< 20 MB disk size */
 #define RESERVED_SECTORS 32
 #define FAT_COUNT 2
 #define ROOT_CLUSTER 2
 
-// FAT32 Boot Sector
+/**
+ * @brief FAT32 Boot Sector structure.
+ *
+ * Represents the on-disk boot sector of a FAT32 filesystem.
+ * Packed to match the exact layout on disk.
+ */
 typedef struct {
     uint8_t jump[3];
     char oem[8];
@@ -44,7 +57,11 @@ typedef struct {
     uint16_t signature;
 } __attribute__((packed)) Fat32BootSector;
 
-// Directory entry
+/**
+ * @brief FAT32 directory entry structure.
+ *
+ * Represents a single file or directory entry in a FAT32 directory.
+ */
 typedef struct {
     char name[11];
     uint8_t attr;
@@ -60,7 +77,7 @@ typedef struct {
     uint32_t file_size;
 } __attribute__((packed)) DirEntry;
 
-// File attributes
+/** File attribute flags for DirEntry */
 #define ATTR_READ_ONLY 0x01
 #define ATTR_HIDDEN 0x02
 #define ATTR_SYSTEM 0x04
@@ -69,19 +86,25 @@ typedef struct {
 #define ATTR_ARCHIVE 0x20
 #define ATTR_LONG_NAME 0x0F
 
-// FAT32 context
+/**
+ * @brief FAT32 emulator context structure.
+ *
+ * Stores all relevant information about the current state of the
+ * emulated FAT32 filesystem.
+ */
 typedef struct {
-    FILE* disk_file;
-    char* disk_path;
-    uint32_t fat_start;
-    uint32_t data_start;
-    uint32_t fat_size;
-    uint32_t total_clusters;
-    char current_path[256];
-    uint32_t current_cluster;
+    FILE* disk_file;         /**< File pointer to the disk image */
+    char* disk_path;         /**< Path to the disk image file */
+    uint32_t fat_start;      /**< Starting sector of the FAT */
+    uint32_t data_start;     /**< Starting sector of the data region */
+    uint32_t fat_size;       /**< Number of sectors in a FAT */
+    uint32_t total_clusters; /**< Total number of clusters */
+    char current_path[256];  /**< Current working directory path */
+    uint32_t current_cluster; /**< Cluster number of the current directory */
 } Fat32Context;
 
-// Function prototypes
+/** @name FAT32 Core Functions */
+//@{
 int fat32_init(Fat32Context* ctx, const char* disk_path);
 int fat32_format(Fat32Context* ctx);
 int fat32_mkdir(Fat32Context* ctx, const char* name);
@@ -90,8 +113,10 @@ int fat32_cd(Fat32Context* ctx, const char* path);
 int fat32_ls(Fat32Context* ctx, const char* path);
 void fat32_cleanup(Fat32Context* ctx);
 int fat32_is_valid(Fat32Context* ctx);
+//@}
 
-// Utility functions
+/** @name FAT32 Utility Functions */
+//@{
 uint32_t fat32_get_cluster_from_entry(const DirEntry* entry);
 void fat32_set_cluster_to_entry(DirEntry* entry, uint32_t cluster);
 void fat32_format_name(const char* name, char* formatted_name);
@@ -103,5 +128,6 @@ uint32_t fat32_find_free_cluster(Fat32Context* ctx);
 int fat32_clear_cluster(Fat32Context* ctx, uint32_t cluster);
 int fat32_read_cluster(Fat32Context* ctx, uint32_t cluster, void* buffer);
 int fat32_write_cluster(Fat32Context* ctx, uint32_t cluster, const void* buffer);
+//@}
 
-#endif
+#endif // FAT32_H
